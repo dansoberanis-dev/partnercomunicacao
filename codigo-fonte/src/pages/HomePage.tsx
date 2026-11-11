@@ -204,7 +204,7 @@ export function HomePage() {
             </h2>
           </InView>
 
-          <InView className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <InView className="mt-12 grid gap-4 sm:grid-cols-2 md:gap-5 lg:grid-cols-3">
             {SOLUTIONS.map((solution, index) => {
               const Icon = solutionIcons[index]
               return (
@@ -216,17 +216,23 @@ export function HomePage() {
                 >
                   <Link
                     to={`/solucoes#${solution.id}`}
-                    className="group home-card flex h-full flex-col rounded-2xl border bg-card p-7"
+                    className="group home-card flex h-full flex-col rounded-2xl border bg-card p-5 md:p-7"
                   >
                     <span aria-hidden="true" className="home-card-spot" />
                     <span aria-hidden="true" className="home-card-shine" />
-                    <span className="home-card-icon flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                      <span aria-hidden="true" className="home-ripple" />
-                      <Icon className="size-6" />
-                    </span>
-                    <h3 className="mt-5 text-xl font-bold">{solution.title}</h3>
-                    <p className="mt-2 flex-1 text-muted-foreground">{solution.desc}</p>
-                    <span className="mt-5 inline-flex items-center gap-1 font-bold text-primary">
+                    <div className="flex items-center gap-3 md:block">
+                      <span className="home-card-icon flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground md:size-12">
+                        <span aria-hidden="true" className="home-ripple" />
+                        <Icon aria-hidden="true" className="size-5 md:size-6" />
+                      </span>
+                      <h3 className="min-w-0 text-lg font-bold leading-snug md:mt-5 md:text-xl md:leading-7">
+                        {solution.title}
+                      </h3>
+                    </div>
+                    <p className="mt-2 flex-1 text-[15px] leading-[1.5] text-muted-foreground md:text-base md:leading-6">
+                      {solution.desc}
+                    </p>
+                    <span className="mt-3.5 inline-flex items-center gap-1 text-sm font-bold text-primary md:mt-5 md:text-base">
                       Saiba mais{' '}
                       <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                     </span>
