@@ -277,11 +277,11 @@ export function GlobeHero({ className }: { className?: string }) {
       H = Math.max(1, Math.round(cssH * dpr))
       canvas.width = W
       canvas.height = H
-      cx = W * (desktopLayout ? 0.525 : 0.44)
-      cy = H * 0.52
+      cx = desktopLayout ? W * 0.525 : W * 0.5
+      cy = H * (desktopLayout ? 0.52 : 0.5)
       R = desktopLayout
         ? Math.min(W * 0.34, H * 0.365)
-        : Math.min(W * 0.37, H * 0.35)
+        : Math.min(W * 0.34, H * 0.37)
 
       atmosphere = ctx.createRadialGradient(cx, cy, R * 0.92, cx, cy, R * 1.42)
       atmosphere.addColorStop(0, 'rgba(80,190,255,0.75)')

@@ -107,7 +107,7 @@ export function HomePage() {
           aria-hidden
         />
 
-        <div className="hero-copy relative z-10 mx-auto w-full max-w-7xl px-4 pt-6 pb-4 md:px-8 md:py-16">
+        <div className="hero-copy relative z-10 order-2 mx-auto w-full max-w-7xl px-4 pt-4 pb-4 md:order-none md:px-8 md:py-16">
           <div className="md:max-w-[50%] lg:max-w-[49%]">
             <p className="anim-word inline-block rounded-full border border-sky/40 px-3.5 py-1 text-[11px] font-bold uppercase tracking-widest text-sky sm:px-4 sm:py-1.5 sm:text-xs">
               {HERO.eyebrow}
@@ -145,7 +145,7 @@ export function HomePage() {
           </div>
         </div>
 
-        <div className="hero-globe pointer-events-none relative -mt-10 h-[430px] w-full shrink-0 sm:h-[470px] md:absolute md:inset-y-0 md:left-[26%] md:right-0 md:mt-0 md:h-auto md:w-[74%]">
+        <div className="hero-globe pointer-events-none relative order-1 -mb-2 h-[330px] w-full shrink-0 sm:h-[410px] md:order-none md:mb-0 md:absolute md:inset-y-0 md:left-[26%] md:right-0 md:h-auto md:w-[74%]">
           <div className="anim-kenburns h-full w-full">
             <GlobeHero className="block h-full w-full" />
           </div>

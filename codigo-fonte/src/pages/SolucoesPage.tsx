@@ -59,7 +59,7 @@ function SolutionCard({
     <article
       ref={ref}
       id={solution.id}
-      className={`solution-card ${fromSide} group relative grid scroll-mt-28 gap-8 overflow-hidden rounded-3xl border bg-card p-8 shadow-soft hover:border-sky/60 hover:shadow-xl md:grid-cols-[1fr_1.2fr] md:p-12 ${
+      className={`solution-card ${fromSide} group relative grid scroll-mt-28 gap-5 overflow-hidden rounded-3xl border bg-card p-5 shadow-soft hover:border-sky/60 hover:shadow-xl sm:gap-6 sm:p-7 md:grid-cols-[1fr_1.2fr] md:gap-8 md:p-12 ${
         visible ? 'is-visible' : ''
       } ${settled ? 'is-settled' : ''}`}
     >
@@ -79,43 +79,46 @@ function SolutionCard({
       </span>
 
       <div className="relative z-10">
-        <div className="flex items-center gap-4">
-          <div className="relative flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm transition-transform duration-500 group-hover:scale-105">
-            <span
-              aria-hidden
-              className="anim-spin-slow pointer-events-none absolute -inset-1.5 rounded-2xl border border-dashed border-sky/60"
-            />
-            <Icon className="size-6" aria-hidden />
-          </div>
-          <p
-            style={{ transitionDelay: settled ? '0ms' : '120ms' }}
-            className="solution-num font-display text-5xl font-extrabold text-sky"
-          >
-            0{index + 1}
-          </p>
-        </div>
-
         <div
           style={{ transitionDelay: settled ? '0ms' : '210ms' }}
           className="solution-head"
         >
-          <h2 className="mt-4 text-2xl font-extrabold md:text-3xl">
-            {solution.title}
-          </h2>
-          <p className="mt-3 leading-relaxed text-muted-foreground">
+          {/* Mobile: ícone ao lado do título. Desktop: ícone, número, título empilhados */}
+          <div className="flex items-center gap-3 md:block">
+            <div className="relative flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition-transform duration-500 group-hover:scale-105 md:size-14 md:rounded-2xl">
+              <span
+                aria-hidden
+                className="anim-spin-slow pointer-events-none absolute -inset-1.5 hidden rounded-2xl border border-dashed border-sky/60 md:block"
+              />
+              <Icon className="size-5 md:size-6" aria-hidden />
+            </div>
+
+            <p
+              style={{ transitionDelay: settled ? '0ms' : '120ms' }}
+              className="solution-num hidden font-display text-5xl font-extrabold text-sky md:mt-5 md:block"
+            >
+              0{index + 1}
+            </p>
+
+            <h2 className="min-w-0 text-xl font-extrabold leading-tight sm:text-2xl md:mt-4 md:text-3xl">
+              {solution.title}
+            </h2>
+          </div>
+
+          <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground sm:text-base md:mt-3">
             {solution.desc}
           </p>
         </div>
       </div>
 
-      <ul className="relative z-10 grid content-start gap-3 sm:grid-cols-2">
+      <ul className="relative z-10 grid content-start gap-2 sm:grid-cols-2 sm:gap-3">
         {solution.items.map((item, i) => (
           <li
             key={item}
             style={{
               transitionDelay: settled ? '0ms' : `${240 + i * 75}ms`,
             }}
-            className="solution-chip group/chip flex items-start gap-2.5 rounded-xl border border-transparent bg-secondary p-3.5 font-semibold hover:border-sky/50 hover:bg-background hover:shadow-sm"
+            className="solution-chip group/chip flex items-start gap-2.5 rounded-xl border border-transparent bg-secondary p-2.5 text-sm font-semibold leading-snug hover:border-sky/50 hover:bg-background hover:shadow-sm sm:p-3.5 sm:text-base"
           >
             <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary transition-colors duration-200 group-hover/chip:bg-primary group-hover/chip:text-primary-foreground">
               <Check className="size-3.5" />
@@ -215,7 +218,7 @@ export function SolucoesPage() {
         Chave de Desempenho (KPIs).
       </PageHero>
 
-      <div className="mx-auto max-w-7xl space-y-8 overflow-x-clip px-4 py-24 md:px-8">
+      <div className="mx-auto max-w-7xl space-y-4 overflow-x-clip px-4 py-14 md:space-y-8 md:px-8 md:py-24">
         {SOLUTIONS.map((solution, index) => (
           <SolutionCard
             key={solution.id}

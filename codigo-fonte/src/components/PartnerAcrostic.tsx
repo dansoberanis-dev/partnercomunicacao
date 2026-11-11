@@ -131,7 +131,7 @@ export function PartnerAcrostic() {
 
         {/* Monograma animado P · A · R · T · N · E · R */}
         <div
-          className="mt-10 flex flex-wrap items-center justify-center gap-2 sm:gap-3"
+          className="mt-10 flex flex-nowrap items-center justify-center gap-1.5 sm:gap-3"
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
           role="tablist"
@@ -153,7 +153,7 @@ export function PartnerAcrostic() {
                 style={{
                   transitionDelay: visible && !revealed ? `${idx * 90}ms` : '0ms',
                 }}
-                className={`group relative flex size-12 items-center justify-center rounded-2xl border font-display text-2xl font-extrabold transition-all sm:size-16 sm:text-3xl ${
+                className={`acrostic-letter group relative flex shrink-0 items-center justify-center rounded-2xl border font-display font-extrabold transition-all ${
                   revealed ? 'duration-300' : 'duration-700'
                 } ${
                   visible

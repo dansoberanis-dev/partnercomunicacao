@@ -488,6 +488,39 @@
   opacity: clamp(0, calc(1 - var(--hp, 0) * 4), 1);
 }
 
+/* Mobile: globo fica acima do texto, então ele sobe (e não desce) ao rolar */
+@media (max-width: 767px) {
+  .hero-globe {
+    transform: translate3d(0, calc(var(--hp, 0) * -60px), 0);
+  }
+
+  .hero-copy {
+    transform: translate3d(0, calc(var(--hp, 0) * -40px), 0);
+  }
+
+  /* Zoom do Ken Burns centralizado no globo, sem deslocar o eixo horizontal */
+  .anim-kenburns {
+    animation-name: kenburns-mobile;
+    transform-origin: 50% 50%;
+  }
+}
+
+@keyframes kenburns-mobile {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.1);
+  }
+}
+
+/* Monograma P.A.R.T.N.E.R.: as 7 letras sempre em uma única linha */
+.acrostic-letter {
+  width: clamp(2rem, 10.2vw, 4rem);
+  height: clamp(2rem, 10.2vw, 4rem);
+  font-size: clamp(0.95rem, 4.4vw, 2rem);
+}
+
 /* Entradas em grupo: o contêiner recebe .is-in e os filhos entram em cascata */
 .rise {
   opacity: 0;
