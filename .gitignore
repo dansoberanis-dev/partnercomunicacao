@@ -1,0 +1,5 @@
+node_modules/
+.venv/
+*.zip
+.DS_Store
+Thumbs.db
