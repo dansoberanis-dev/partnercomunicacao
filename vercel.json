@@ -1,1 +1,11 @@
-{"trailingSlash":false,"rewrites":[{"source":"/(.*)","destination":"/index.html"}]}
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npm ci --prefix codigo-fonte",
+  "buildCommand": "npm run build --prefix codigo-fonte",
+  "outputDirectory": "codigo-fonte/dist",
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
