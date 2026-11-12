@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { GLOBE_LAND_MASK, GLOBE_POINT_COUNT } from '../data/globe-land'
+import {
+  SP_STATE_CENTER,
+  SP_STATE_ISLANDS,
+  SP_STATE_OUTLINE,
+} from '../data/sao-paulo-state'
 
 /**
  * Globo 3D animado do hero (canvas 2D, sem bibliotecas externas).
@@ -7,6 +12,9 @@ import { GLOBE_LAND_MASK, GLOBE_POINT_COUNT } from '../data/globe-land'
  * - Continentes desenhados como "luzes de cidades" (pontos).
  * - Arcos de conexão saindo de São Paulo e se espalhando pelo mundo,
  *   com um brilho que percorre cada traço (efeito de comunicação).
+ * - Arcos de retorno (Tóquio, Londres e Los Angeles → São Paulo): quando um
+ *   desses pontos luminosos chega a São Paulo com o estado de frente para o
+ *   usuário, a silhueta do estado de São Paulo acende em dourado.
  * - Anéis orbitais com "cometas" de luz.
  * O zoom sutil (Ken Burns) é aplicado no elemento pai via CSS.
  */
@@ -88,14 +96,29 @@ const LINKS: [string, string][] = [
   ['moscow', 'shanghai'],
 ]
 
+/**
+ * Arcos de "retorno" que terminam em São Paulo. A chegada do ponto luminoso
+ * (quando o estado está de frente para o usuário) acende a silhueta de SP em dourado.
+ * `arrive` = instante (ms) em que o ponto toca São Paulo.
+ */
+const INBOUND_LINKS: { from: string; to: string; arrive: number }[] = [
+  // A chegada é sincronizada com o momento em que o estado de São Paulo
+  // atravessa a área livre do globo (à esquerda da letra "P"), com o mapa
+  // de frente para o usuário — cerca de 3 s após o globo começar a girar,
+  // repetindo a cada volta completa (60 s).
+  { from: 'london', to: 'saoPaulo', arrive: 3000 },
+  { from: 'tokyo', to: 'saoPaulo', arrive: 4100 },
+]
+
 const DEG = Math.PI / 180
 const SPIN = (2 * Math.PI) / 60000 // uma volta completa a cada 60 s
-const BASE_LON = -35 * DEG // começa com o Brasil/Atlântico de frente
+const BASE_LON = -25 * DEG // começa com o Brasil de frente; o estado de SP fica na área livre do globo
 const VIEW_LAT = 14 * DEG // vista levemente de cima
 const ROLL = -8 * DEG // leve inclinação do eixo
 const ARC_SAMPLES = 64
 const TRAIL = 0.3 // tamanho do rastro de luz (fração do arco)
 const BUCKETS = 6
+const SP_FLASH_MS = 2400 // duração do brilho dourado após a chegada do ponto
 
 function toVec([lat, lon]: LatLon): [number, number, number] {
   const la = lat * DEG
@@ -156,6 +179,24 @@ type Arc = {
   to: string
   delay: number
   dur: number
+  inbound?: boolean
+}
+
+/** Arco geodésico com elevação — mesma geometria para os arcos normais e de retorno. */
+function arcPoints(a: [number, number, number], b: [number, number, number], omega: number) {
+  const sinO = Math.sin(omega) || 1e-6
+  const lift = 0.04 + 0.3 * (omega / Math.PI)
+  const pts = new Float32Array(ARC_SAMPLES * 3)
+  for (let s = 0; s < ARC_SAMPLES; s++) {
+    const t = s / (ARC_SAMPLES - 1)
+    const k1 = Math.sin((1 - t) * omega) / sinO
+    const k2 = Math.sin(t * omega) / sinO
+    const h = 1 + lift * Math.sin(Math.PI * t)
+    pts[s * 3] = (a[0] * k1 + b[0] * k2) * h
+    pts[s * 3 + 1] = (a[1] * k1 + b[1] * k2) * h
+    pts[s * 3 + 2] = (a[2] * k1 + b[2] * k2) * h
+  }
+  return { pts, omega }
 }
 
 function buildArcs() {
@@ -166,26 +207,32 @@ function buildArcs() {
     const a = toVec(HUBS[from])
     const b = toVec(HUBS[to])
     const dot = Math.min(1, Math.max(-1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]))
-    const omega = Math.acos(dot)
-    const sinO = Math.sin(omega) || 1e-6
-    const lift = 0.04 + 0.3 * (omega / Math.PI)
-    const pts = new Float32Array(ARC_SAMPLES * 3)
-    for (let s = 0; s < ARC_SAMPLES; s++) {
-      const t = s / (ARC_SAMPLES - 1)
-      const k1 = Math.sin((1 - t) * omega) / sinO
-      const k2 = Math.sin(t * omega) / sinO
-      const h = 1 + lift * Math.sin(Math.PI * t)
-      pts[s * 3] = (a[0] * k1 + b[0] * k2) * h
-      pts[s * 3 + 1] = (a[1] * k1 + b[1] * k2) * h
-      pts[s * 3 + 2] = (a[2] * k1 + b[2] * k2) * h
-    }
+    const { pts, omega } = arcPoints(a, b, Math.acos(dot))
     const n = (childCount[from] = (childCount[from] ?? 0) + 1)
     const delay = (arrival[from] ?? 0) + (n - 1) * 260 + hash(arcs.length + 3) * 200
     const dur = 1100 + 1700 * (omega / Math.PI)
     if (arrival[to] === undefined) arrival[to] = delay + dur
     arcs.push({ pts, from, to, delay, dur })
   }
-  const cycle = Math.max(...arcs.map((a) => a.delay + a.dur)) + 2200
+
+  // Arcos de retorno: o ponto luminoso viaja até São Paulo e "bate" no estado
+  for (const link of INBOUND_LINKS) {
+    const a = toVec(HUBS[link.from])
+    const b = toVec(HUBS[link.to])
+    const dot = Math.min(1, Math.max(-1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]))
+    const { pts, omega } = arcPoints(a, b, Math.acos(dot))
+    const dur = 1100 + 1700 * (omega / Math.PI)
+    arcs.push({
+      pts,
+      from: link.from,
+      to: link.to,
+      delay: Math.max(0, link.arrive - dur),
+      dur,
+      inbound: true,
+    })
+  }
+
+  const cycle = Math.max(...arcs.map((a) => a.delay + a.dur)) + 2400
   return { arcs, cycle }
 }
 
@@ -232,6 +279,33 @@ export function GlobeHero({ className }: { className?: string }) {
     const hubVecs = hubNames.map((n) => toVec(HUBS[n]))
     const arrivalsByHub: Record<string, Arc[]> = {}
     for (const a of arcs) (arrivalsByHub[a.to] ??= []).push(a)
+
+    // ---------- Estado de São Paulo: silhueta + chegadas que acendem em dourado
+    const inboundArcs = arcs.filter((a) => a.inbound)
+    const spPolys = [SP_STATE_OUTLINE, ...SP_STATE_ISLANDS]
+      .filter((ring) => ring.length >= 6)
+      .map((ring) => {
+        const n = ring.length / 2
+        const vecs = new Float32Array(n * 3)
+        for (let i = 0; i < n; i++) {
+          const v = toVec([ring[i * 2], ring[i * 2 + 1]])
+          vecs[i * 3] = v[0]
+          vecs[i * 3 + 1] = v[1]
+          vecs[i * 3 + 2] = v[2]
+        }
+        return vecs
+      })
+    const spCounts = spPolys.map((poly) => poly.length / 3)
+    const spStarts: number[] = []
+    let spTotalPoints = 0
+    for (const count of spCounts) {
+      spStarts.push(spTotalPoints)
+      spTotalPoints += count
+    }
+    const spSX = new Float32Array(spTotalPoints)
+    const spSY = new Float32Array(spTotalPoints)
+    const spZ = new Float32Array(spTotalPoints)
+    const spCenterVec = toVec(SP_STATE_CENTER)
 
     const glow = makeSprite('rgba(255,255,255,1)', 'rgba(150,225,255,0.75)')
     const softGlow = makeSprite('rgba(170,230,255,0.9)', 'rgba(60,170,255,0.35)')
@@ -388,6 +462,26 @@ export function GlobeHero({ className }: { className?: string }) {
       ctx.arc(cx, cy, R, 0, Math.PI * 2)
       ctx.stroke()
 
+      // ---------- São Paulo: silhueta do estado + brilho dourado na chegada do ponto
+      const spcx = spCenterVec[0] * cl - spCenterVec[2] * sl
+      const spz1 = spCenterVec[2] * cl + spCenterVec[0] * sl
+      const spcy = spCenterVec[1] * ct - spz1 * st
+      const spcz = spCenterVec[1] * st + spz1 * ct
+      const spFacing = Math.max(0, Math.min(1, (spcz - 0.04) / 0.42))
+
+      let spFlash = 0
+      if (!reduceMotion && spFacing > 0) {
+        for (let i = 0; i < inboundArcs.length; i++) {
+          const arc = inboundArcs[i]
+          let local = (T - arc.delay - arc.dur) % cycle
+          if (local < 0) local += cycle
+          if (local < SP_FLASH_MS) {
+            spFlash = Math.max(spFlash, 1 - local / SP_FLASH_MS)
+          }
+        }
+        spFlash *= spFacing
+      }
+      drawSaoPaulo()
       ctx.globalCompositeOperation = 'lighter'
 
       // ---------- projeção dos arcos
@@ -597,6 +691,206 @@ export function GlobeHero({ className }: { className?: string }) {
         ctx.restore()
       }
 
+      /**
+       * Silhueta do estado de São Paulo desenhada sobre o globo.
+       * - Em repouso: contorno sutil, só para localizar o estado.
+       * - Quando um ponto luminoso chega a São Paulo com o mapa de frente para o
+       *   usuário: a silhueta é ampliada, preenchida em dourado, com halo, anel
+       *   de luz e contorno luminoso — o estado fica em destaque.
+       */
+      function drawSaoPaulo() {
+        if (spFacing <= 0.01) return
+
+        const cxs = cx + (spcx * cr - spcy * sr) * R
+        const cys = cy - (spcx * sr + spcy * cr) * R
+        const zoom = 1 + (small ? 1.65 : 1.9) * spFlash
+
+        let written = 0
+        for (let p = 0; p < spPolys.length; p++) {
+          const pts = spPolys[p]
+          const n = spCounts[p]
+          for (let i = 0; i < n; i++) {
+            const X = pts[i * 3]
+            const Y = pts[i * 3 + 1]
+            const Z = pts[i * 3 + 2]
+            const x = X * cl - Z * sl
+            const z1 = Z * cl + X * sl
+            const y = Y * ct - z1 * st
+            const z = Y * st + z1 * ct
+            spSX[written + i] = cx + (x * cr - y * sr) * R
+            spSY[written + i] = cy - (x * sr + y * cr) * R
+            spZ[written + i] = z
+          }
+          written += n
+        }
+
+        // pontos de todos os polígonos estão de frente? (não desenhar meio estado)
+        let allFront = true
+        for (let i = 0; i < spTotalPoints; i++) {
+          if (spZ[i] <= 0.015) {
+            allFront = false
+            break
+          }
+        }
+
+        const traceClosed = (p: number, transform: boolean) => {
+          const start = spStarts[p]
+          const n = spCounts[p]
+          ctx.beginPath()
+          for (let i = 0; i < n; i++) {
+            const idx = start + i
+            const x = transform ? cxs + (spSX[idx] - cxs) * zoom : spSX[idx]
+            const y = transform ? cys + (spSY[idx] - cys) * zoom : spSY[idx]
+            if (i === 0) ctx.moveTo(x, y)
+            else ctx.lineTo(x, y)
+          }
+          ctx.closePath()
+        }
+
+        const traceVisible = (p: number) => {
+          const start = spStarts[p]
+          const n = spCounts[p]
+          ctx.beginPath()
+          let pen = false
+          for (let i = 0; i < n; i++) {
+            const idx = start + i
+            if (spZ[idx] <= 0.015) {
+              pen = false
+              continue
+            }
+            if (pen) ctx.lineTo(spSX[idx], spSY[idx])
+            else ctx.moveTo(spSX[idx], spSY[idx])
+            pen = true
+          }
+        }
+
+        // o estado não pode acender escondido atrás da letra P do logo
+        const pL = cx - 0.068 * R
+        const pR = cx + 1.105 * R
+        const pT = cy - 0.588 * R
+        const pB = cy + 0.648 * R
+        const margin = 0.05 * R
+        let occluded = 1
+        if (cxs > pL + margin && cxs < pR - margin && cys > pT + margin && cys < pB - margin) {
+          occluded = 0.35 // centro escondido atrás do P: acende mais discreto
+        }
+        const flash = spFlash * occluded
+        const glowR = R * 0.11
+
+        // empurra a silhueta ampliada para a esquerda se ela for invadir a letra P
+        let shiftX = 0
+        let shiftY = 0
+        if (flash > 0.02 && allFront) {
+          let maxX = -Infinity
+          let minY = Infinity
+          let maxY = -Infinity
+          for (let i = 0; i < spTotalPoints; i++) {
+            const x = cxs + (spSX[i] - cxs) * zoom
+            const y = cys + (spSY[i] - cys) * zoom
+            if (x > maxX) maxX = x
+            if (y < minY) minY = y
+            if (y > maxY) maxY = y
+          }
+          const limitX = pL - 0.01 * R
+          if (maxX > limitX) shiftX = limitX - maxX
+          if (minY < 0.03 * R) shiftY = 0.03 * R - minY
+          else if (maxY > H - 0.03 * R) shiftY = H - 0.03 * R - maxY
+        }
+
+        ctx.save()
+        ctx.translate(shiftX, shiftY)
+
+        if (flash > 0.02 && allFront) {
+          // halo dourado difuso (aditivo)
+          ctx.globalCompositeOperation = 'lighter'
+          const haloR = R * (small ? 0.3 + 0.26 * flash : 0.16 + 0.2 * flash)
+          const halo = ctx.createRadialGradient(cxs, cys, 0, cxs, cys, haloR)
+          halo.addColorStop(0, `rgba(255, 200, 90, ${((small ? 0.55 : 0.4) * flash).toFixed(3)})`)
+          halo.addColorStop(0.5, `rgba(255, 160, 40, ${(0.18 * flash).toFixed(3)})`)
+          halo.addColorStop(1, 'rgba(255, 150, 30, 0)')
+          ctx.fillStyle = halo
+          ctx.beginPath()
+          ctx.arc(cxs, cys, haloR, 0, Math.PI * 2)
+          ctx.fill()
+
+          // base escura translúcida para a silhueta ganhar contraste sobre o globo claro
+          ctx.globalCompositeOperation = 'source-over'
+          const base = ctx.createRadialGradient(cxs, cys, 0, cxs, cys, glowR * 1.3)
+          base.addColorStop(0, `rgba(6, 20, 36, ${(0.55 * flash).toFixed(3)})`)
+          base.addColorStop(1, 'rgba(6, 20, 36, 0)')
+          ctx.fillStyle = base
+          ctx.beginPath()
+          ctx.arc(cxs, cys, glowR * 1.3, 0, Math.PI * 2)
+          ctx.fill()
+
+          // silhueta ampliada, preenchida em dourado (cor sólida = dourado de verdade)
+          const gold = ctx.createLinearGradient(cxs - glowR, cys - glowR, cxs + glowR, cys + glowR)
+          gold.addColorStop(0, `rgba(255, 246, 202, ${(1 * flash).toFixed(3)})`)
+          gold.addColorStop(0.45, `rgba(255, 205, 74, ${(1 * flash).toFixed(3)})`)
+          gold.addColorStop(1, `rgba(240, 158, 26, ${(1 * flash).toFixed(3)})`)
+
+          ctx.lineJoin = 'round'
+          for (let p = 0; p < spPolys.length; p++) {
+            traceClosed(p, true)
+            ctx.fillStyle = gold
+            ctx.fill()
+            ctx.strokeStyle = `rgba(120, 68, 6, ${(0.55 * flash).toFixed(3)})`
+            ctx.lineWidth = Math.max(1.4, 1.6 * dpr)
+            ctx.stroke()
+          }
+
+          // contorno luminoso por cima, com brilho dourado
+          ctx.globalCompositeOperation = 'lighter'
+          ctx.shadowColor = `rgba(255, 206, 92, ${(0.95 * flash).toFixed(3)})`
+          ctx.shadowBlur = 18 * dpr * flash
+          ctx.strokeStyle = `rgba(255, 250, 220, ${(0.95 * flash).toFixed(3)})`
+          ctx.lineWidth = Math.max(1, (1 + 1.2 * flash) * dpr)
+          for (let p = 0; p < spPolys.length; p++) {
+            traceClosed(p, true)
+            ctx.stroke()
+          }
+          ctx.shadowBlur = 0
+          ctx.shadowColor = 'transparent'
+
+          // clarão central (deixa o acendimento evidente também em telas pequenas)
+          const flare = ctx.createRadialGradient(cxs, cys, 0, cxs, cys, R * 0.1)
+          flare.addColorStop(0, `rgba(255, 252, 235, ${(0.9 * flash).toFixed(3)})`)
+          flare.addColorStop(0.35, `rgba(255, 214, 110, ${(0.55 * flash).toFixed(3)})`)
+          flare.addColorStop(1, 'rgba(255, 190, 60, 0)')
+          ctx.fillStyle = flare
+          ctx.beginPath()
+          ctx.arc(cxs, cys, R * 0.1, 0, Math.PI * 2)
+          ctx.fill()
+
+          // anel de luz em volta do estado iluminado
+          ctx.strokeStyle = `rgba(255, 216, 130, ${(0.6 * flash).toFixed(3)})`
+          ctx.lineWidth = Math.max(1, 1.2 * dpr)
+          ctx.beginPath()
+          ctx.arc(cxs, cys, glowR * (0.72 + 0.34 * (1 - flash)), 0, Math.PI * 2)
+          ctx.stroke()
+
+          // onda de luz que se propaga a partir do estado
+          const wave = 1 - flash
+          ctx.strokeStyle = `rgba(255, 214, 112, ${(0.6 * flash).toFixed(3)})`
+          ctx.lineWidth = Math.max(1, (1.6 - wave) * dpr)
+          const rr = R * (0.12 + 0.24 * wave)
+          ctx.beginPath()
+          ctx.ellipse(cxs, cys, rr, rr * (0.5 + 0.5 * spFacing), ROLL, 0, Math.PI * 2)
+          ctx.stroke()
+
+          ctx.globalCompositeOperation = 'source-over'
+        } else {
+          // contorno discreto para localizar o estado quando a luz não está nele
+          ctx.strokeStyle = `rgba(176, 226, 255, ${(0.4 * spFacing).toFixed(3)})`
+          ctx.lineWidth = Math.max(1, 0.9 * dpr)
+          for (let p = 0; p < spPolys.length; p++) {
+            traceVisible(p)
+            ctx.stroke()
+          }
+        }
+
+        ctx.restore()
+      }
       function drawHubs(time: number, staticOnly: boolean) {
         for (let h = 0; h < hubNames.length; h++) {
           const v = hubVecs[h]
@@ -635,6 +929,17 @@ export function GlobeHero({ className }: { className?: string }) {
               ctx.lineWidth = Math.max(1, 1.2 * dpr)
               ctx.beginPath()
               const rr = (5 + 26 * p) * dpr * (R / (380 * dpr))
+              ctx.ellipse(sx, sy, rr, rr * (0.45 + 0.55 * z), ROLL, 0, Math.PI * 2)
+              ctx.stroke()
+            }
+
+            // onda dourada no exato momento em que o ponto luminoso alcança São Paulo
+            if (hubNames[h] === 'saoPaulo' && spFlash > 0.05) {
+              const wave = 1 - spFlash
+              ctx.strokeStyle = `rgba(255, 214, 118, ${(0.85 * spFlash).toFixed(3)})`
+              ctx.lineWidth = Math.max(1, 1.7 * dpr)
+              ctx.beginPath()
+              const rr = (6 + 30 * wave) * dpr * (R / (380 * dpr))
               ctx.ellipse(sx, sy, rr, rr * (0.45 + 0.55 * z), ROLL, 0, Math.PI * 2)
               ctx.stroke()
             }
